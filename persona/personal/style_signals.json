@@ -1,0 +1,37 @@
+{
+  "sender_name": "You",
+  "total_sample_size": 700,
+  "avg_words_per_message": 2.54,
+  "hinglish_ratio_percent": 5.57,
+  "hinglish_ratio": "5.57%",
+  "top_15_emojis": [
+    {
+      "emoji": "😂",
+      "count": 9
+    },
+    {
+      "emoji": "😭",
+      "count": 7
+    },
+    {
+      "emoji": "🤣",
+      "count": 4
+    },
+    {
+      "emoji": "🙂",
+      "count": 3
+    },
+    {
+      "emoji": "🫪",
+      "count": 2
+    },
+    {
+      "emoji": "🥹",
+      "count": 1
+    },
+    {
+      "emoji": "🥲",
+      "count": 1
+    }
+  ]
+}

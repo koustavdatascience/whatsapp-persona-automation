@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Dependencies
+node_modules/
+
+# Vector DB
+.chromadb/
+
+# Private chat data — never commit real conversations
+data/raw_export/
+data/processed_chats/
+data/processed_pairs.jsonl
+chats/
+persona/**/*.jsonl
+
+# Docs
+docs/
