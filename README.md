@@ -1,5 +1,7 @@
 ﻿# WhatsApp Persona Automation
 
+> 🚧 **Work in progress** — actively being built. Features and structure may change.
+
 A **RAG-based NLP pipeline** that learns your personal texting style from WhatsApp chat exports and generates contextually appropriate, persona-consistent auto-replies using LLMs.
 
 ## Architecture
