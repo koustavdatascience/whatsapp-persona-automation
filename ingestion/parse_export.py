@@ -7,6 +7,8 @@ from pathlib import Path
 import re
 import sys
 
+from config.constants import ONE_WORD_ACKS
+
 # Supported WhatsApp export header pattern:
 # Handles bracketed format: [8/26/26, 10:35:35 AM] Sender: Msg
 # Handles unbracketed format: 8/26/26, 10:35 AM - Sender: Msg
@@ -45,19 +47,6 @@ NOISE_MARKERS = [
 
 # Catches any WhatsApp <X omitted> bracketed pattern not in the list above
 _OMITTED_RE = re.compile(r'<[^>]+ omitted>', re.IGNORECASE)
-
-ONE_WORD_ACKS = {
-    "ok",
-    "okay",
-    "k",
-    "kk",
-    "haan",
-    "hmm",
-    "thanks",
-    "thank you",
-    "cool",
-    "nice",
-}
 
 
 def derive_conversation_id(file_path: Path) -> str:

@@ -1,0 +1,27 @@
+{"timestamp": "2026-09-23T05:54:53.836441+00:00", "text": "hello", "relationship": "friend", "decision": "ignore", "reason": "own message"}
+{"timestamp": "2026-09-23T05:54:53.837354+00:00", "text": "hello", "relationship": "group", "decision": "ignore", "reason": "group chat, not allowlisted"}
+{"timestamp": "2026-09-23T05:54:53.838507+00:00", "text": "hello", "relationship": "unknown", "decision": "ignore", "reason": "sender not in allowlist"}
+{"timestamp": "2026-09-23T05:54:53.839382+00:00", "text": "", "relationship": "friend", "decision": "ignore", "reason": "media-only, no text to ground a reply"}
+{"timestamp": "2026-09-23T05:54:53.840057+00:00", "text": "fwd msg", "relationship": "friend", "decision": "ignore", "reason": "forwarded content, not a real question"}
+{"timestamp": "2026-09-23T05:54:53.840648+00:00", "text": "ok", "relationship": "friend", "decision": "ignore", "reason": "low-signal ack, no reply needed"}
+{"timestamp": "2026-09-23T05:54:53.841216+00:00", "text": "Hmm.", "relationship": "friend", "decision": "ignore", "reason": "low-signal ack, no reply needed"}
+{"timestamp": "2026-09-23T05:54:56.805834+00:00", "text": "Bhai free acho? adda debo", "relationship": "friend", "decision": "reply", "reason": "passed all gates"}
+{"timestamp": "2026-09-23T05:54:59.694031+00:00", "text": "Can you lend me 5000 rupees?", "relationship": "professional", "decision": "ignore", "reason": "needs_human_money_or_serious"}
+{"timestamp": "2026-09-23T06:29:07.133572+00:00", "text": "Hey, I'm heading out now", "relationship": "friend", "decision": "ignore", "reason": "own message"}
+{"timestamp": "2026-09-23T06:29:07.136580+00:00", "text": "Anyone free tonight for a game?", "relationship": "group", "decision": "ignore", "reason": "group chat, not allowlisted"}
+{"timestamp": "2026-09-23T06:29:07.139572+00:00", "text": "Hi, is this Koustav?", "relationship": "unknown", "decision": "ignore", "reason": "sender not in allowlist"}
+{"timestamp": "2026-09-23T06:29:07.141574+00:00", "text": "", "relationship": "friend", "decision": "ignore", "reason": "media-only, no text to ground a reply"}
+{"timestamp": "2026-09-23T06:29:07.143573+00:00", "text": "Check out this amazing offer!", "relationship": "family", "decision": "ignore", "reason": "forwarded content, not a real question"}
+{"timestamp": "2026-09-23T06:29:07.146577+00:00", "text": "thanks", "relationship": "friend", "decision": "ignore", "reason": "low-signal ack, no reply needed"}
+{"timestamp": "2026-09-23T06:29:09.784520+00:00", "text": "Can you send me 5000 rupees? I'll pay you back tomorrow.", "relationship": "professional", "decision": "ignore", "reason": "needs_human_money_or_serious"}
+{"timestamp": "2026-09-23T06:29:13.262881+00:00", "text": "Bhai lobby bana, khelbi tonight?", "relationship": "friend", "decision": "reply", "reason": "passed all gates"}
+{"timestamp": "2026-09-23T06:29:15.531171+00:00", "text": "Hey, can you send over the draft by tomorrow?", "relationship": "professional", "decision": "reply", "reason": "passed all gates"}
+{"timestamp": "2026-09-23T06:29:15.532139+00:00", "text": "Hey, I'm heading out now", "relationship": "friend", "decision": "ignore", "reason": "own message"}
+{"timestamp": "2026-09-23T06:29:15.533138+00:00", "text": "Anyone free tonight for a game?", "relationship": "group", "decision": "ignore", "reason": "group chat, not allowlisted"}
+{"timestamp": "2026-09-23T06:29:15.534143+00:00", "text": "Hi, is this Koustav?", "relationship": "unknown", "decision": "ignore", "reason": "sender not in allowlist"}
+{"timestamp": "2026-09-23T06:29:15.535436+00:00", "text": "", "relationship": "friend", "decision": "ignore", "reason": "media-only, no text to ground a reply"}
+{"timestamp": "2026-09-23T06:29:15.536434+00:00", "text": "Check out this amazing offer!", "relationship": "family", "decision": "ignore", "reason": "forwarded content, not a real question"}
+{"timestamp": "2026-09-23T06:29:15.542454+00:00", "text": "thanks", "relationship": "friend", "decision": "ignore", "reason": "low-signal ack, no reply needed"}
+{"timestamp": "2026-09-23T06:29:18.094474+00:00", "text": "Can you send me 5000 rupees? I'll pay you back tomorrow.", "relationship": "professional", "decision": "ignore", "reason": "needs_human_money_or_serious"}
+{"timestamp": "2026-09-23T06:29:21.209983+00:00", "text": "Bhai lobby bana, khelbi tonight?", "relationship": "friend", "decision": "reply", "reason": "passed all gates"}
+{"timestamp": "2026-09-23T06:29:24.029552+00:00", "text": "Hey, can you send over the draft by tomorrow?", "relationship": "professional", "decision": "reply", "reason": "passed all gates"}
