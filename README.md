@@ -107,8 +107,4 @@ Never commit real conversation data to a public repository.
 
 ---
 
-## Contributors
-
-| Name | GitHub |
-|---|---|
-| Koustav | [@koustavdatascience](https://github.com/koustavdatascience) |
+Built by [@koustavdatascience](https://github.com/koustavdatascience)
