@@ -16,6 +16,9 @@ chroma_data/
 # WhatsApp session — contains auth tokens, never commit
 auth_info_baileys/
 
+# Runtime logs — generated at runtime, not source
+logs/
+
 # Chroma / server runtime files
 chroma_server.log
 chroma_server.log.err
