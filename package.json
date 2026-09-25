@@ -1,0 +1,32 @@
+{
+  "name": "whatsapp-text-automation",
+  "version": "1.0.0",
+  "description": "> 🚧 **Work in progress** — actively being built. Features and structure may change.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koustavdatascience/whatsapp-persona-automation.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/koustavdatascience/whatsapp-persona-automation/issues"
+  },
+  "homepage": "https://github.com/koustavdatascience/whatsapp-persona-automation#readme",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.22",
+    "axios": "^1.20.0",
+    "dotenv": "^18.0.3",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

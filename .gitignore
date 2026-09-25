@@ -6,11 +6,20 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Dependencies
+# Node dependencies
 node_modules/
 
 # Vector DB
 .chromadb/
+chroma_data/
+
+# WhatsApp session — contains auth tokens, never commit
+auth_info_baileys/
+
+# Chroma / server runtime files
+chroma_server.log
+chroma_server.log.err
+.chroma_server.pid
 
 # Private chat data — never commit real conversations
 data/raw_export/
