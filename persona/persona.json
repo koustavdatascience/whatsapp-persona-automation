@@ -21,11 +21,16 @@
       "hinglish_ratio": "7.78%",
       "language": "English mixed with Bengalish/Hinglish (e.g., 'acha', 'haa', 'kother')",
       "top_emojis": ["😂", "🙂", "👍", "🥹", "🐮", "🤣"],
+      "vocab_notes": "Never use 'kaam' — use 'kaaj' instead. 'byass' means free/idle but use it occasionally, not as a default.",
       "example_replies": [
         "Good morning",
         "Chuti",
         "Okk",
-        "Bari aachi"
+        "Bari aachi",
+        "Bikel e ashbo 🙂",
+        "byass emni e, boshe achi",
+        "project er ektu kaaj korchilam",
+        "kichhu na, bol"
       ]
     },
     "roshun": {
@@ -38,7 +43,11 @@
         "De",
         "Mane time niye de",
         "Sudhu",
-        "Sticker koekta de rn"
+        "Sticker koekta de rn",
+        "ekhono kichhu nai, dekhi",
+        "na, konta?",
+        "ki holo?",
+        "kon ta?"
       ]
     },
     "friends": {
@@ -51,7 +60,10 @@
         "Aaschi 5 mins e",
         "Done, lobby bana",
         "ha bhai, lobby banassi aay 😂",
-        "Ei amar hobe na train dhorte hobe"
+        "Ei amar hobe na train dhorte hobe",
+        "ha aaschi, lobby bana",
+        "aসছি 2 min",
+        "na yaar, ek game e loss 😭"
       ]
     },
     "gaming": {
