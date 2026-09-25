@@ -47,6 +47,7 @@ debug=False so the server does not restart on every code change.
 
 import json
 import os
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -55,16 +56,36 @@ from flask import Flask, jsonify, request
 
 load_dotenv()
 
-# ── Lazy-import agent modules — server starts even if scipy is blocked ────────
-try:
-    from agent.router import resolve_relationship
-    from agent.decision_engine import should_reply
-    from agent.generator import generate_reply
-    from ingestion.retrieval import retrieve_similar
-    _PIPELINE_AVAILABLE = True
-except Exception as _e:
-    print(f"[agent.bridge] WARNING: pipeline unavailable ({_e})")
-    _PIPELINE_AVAILABLE = False
+# ── Pipeline state — populated by background import thread ───────────────────
+_pipeline_lock      = threading.Lock()
+_PIPELINE_AVAILABLE = False
+resolve_relationship = None
+should_reply         = None
+generate_reply       = None
+retrieve_similar     = None
+
+def _import_pipeline():
+    """Import agent modules in a background thread so Flask starts immediately
+    even if the Windows security popup hangs on scipy/sentence-transformers."""
+    global _PIPELINE_AVAILABLE, resolve_relationship, should_reply
+    global generate_reply, retrieve_similar
+    try:
+        from agent.router import resolve_relationship as _rr
+        from agent.decision_engine import should_reply as _sr
+        from agent.generator import generate_reply as _gr
+        from ingestion.retrieval import retrieve_similar as _rs
+        with _pipeline_lock:
+            resolve_relationship = _rr
+            should_reply         = _sr
+            generate_reply       = _gr
+            retrieve_similar     = _rs
+            _PIPELINE_AVAILABLE  = True
+        print("[agent.bridge] ✅ Pipeline loaded successfully")
+    except Exception as _e:
+        print(f"[agent.bridge] WARNING: pipeline unavailable ({_e})")
+
+# Start importing in background immediately — Flask binds to port first
+threading.Thread(target=_import_pipeline, daemon=True).start()
 
 # ── Config ────────────────────────────────────────────────────────────────────
 PORT          = int(os.getenv("AGENT_BRIDGE_PORT", 5001))
@@ -111,7 +132,10 @@ def process():
     print(f"[agent.bridge] ← {jid} | {message_type} | {text[:60]!r}")
 
     # Pipeline unavailable — return graceful degradation
-    if not _PIPELINE_AVAILABLE:
+    with _pipeline_lock:
+        pipeline_ready = _PIPELINE_AVAILABLE
+
+    if not pipeline_ready:
         entry = {
             "timestamp":       datetime.now(timezone.utc).isoformat(),
             "jid":             jid,
@@ -131,6 +155,55 @@ def process():
 
     # Step 1 — resolve relationship
     relationship, _ = resolve_relationship(jid)
+
+    # Step 2 — build message dict and run decision gate
+    message_dict = {
+        "from_me":      from_me,
+        "text":         text,
+        "message_type": message_type,
+        "is_forwarded": is_forwarded,
+    }
+    ok, reason = should_reply(message_dict, relationship)
+
+    # Step 3 — generate reply if approved
+    # Special case: media_ack replies are rule-based and carried in the reason
+    # string as "media_ack::<reply text>" — no LLM call needed.
+    reply = None
+    if ok:
+        if reason.startswith("media_ack::"):
+            reply = reason.split("::", 1)[1]
+            reason = "media_ack"
+        else:
+            reply = generate_reply(text, relationship)
+
+    # Step 4 — retrieval trace for logging/display (purely informational)
+    retrieval_trace = []
+    try:
+        retrieval_trace = retrieve_similar(relationship, text, k=3)
+    except Exception as exc:
+        print(f"[agent.bridge] retrieval trace skipped ({exc})")
+
+    # Step 5 — log the decision
+    entry = {
+        "timestamp":       datetime.now(timezone.utc).isoformat(),
+        "jid":             jid,
+        "relationship":    relationship,
+        "decision":        "reply" if ok else "ignore",
+        "reason":          reason,
+        "reply":           reply,
+        "retrieval_trace": retrieval_trace,
+    }
+    _append_log(entry)
+
+    print(f"[agent.bridge] → {'REPLY' if ok else 'IGNORE'} | {reason}")
+
+    # Step 6 — respond
+    return jsonify({
+        "should_reply": ok,
+        "reply":        reply,
+        "relationship": relationship,
+        "reason":       reason,
+    })
 
     # Step 2 — build message dict and run decision gate
     message_dict = {
