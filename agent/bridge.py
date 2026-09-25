@@ -142,9 +142,15 @@ def process():
     ok, reason = should_reply(message_dict, relationship)
 
     # Step 3 — generate reply if approved
+    # Special case: media_ack replies are rule-based and carried in the reason
+    # string as "media_ack::<reply text>" — no LLM call needed.
     reply = None
     if ok:
-        reply = generate_reply(text, relationship)
+        if reason.startswith("media_ack::"):
+            reply = reason.split("::", 1)[1]
+            reason = "media_ack"
+        else:
+            reply = generate_reply(text, relationship)
 
     # Step 4 — retrieval trace for logging/display (purely informational)
     retrieval_trace = []

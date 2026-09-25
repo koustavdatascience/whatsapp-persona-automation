@@ -130,13 +130,23 @@ def should_reply(message: dict, relationship: str) -> tuple[bool, str]:
 
     # ── LAYER 2: SIGNAL RULES (instant, no LLM) ──────────────────────────────
 
-    # Media with no text caption — nothing to ground a reply on.
-    # NOTE: Session 4.1 will upgrade this to a rule-based contextual ack
-    # instead of a plain ignore; for now, ignore is correct and expected.
+    # Media with no text caption — rule-based contextual ack.
+    # For known contacts (not group/unknown — already filtered above in Layer 1):
+    #   return should_reply=True with a fixed type-specific ack text.
+    #   NO LLM call — pure rule-based response.
+    # Group/unknown senders are already blocked in Layer 1, never reach here.
     if message_type in ("image", "audio", "video") and not text.strip():
-        reason = "media-only, no text to ground a reply"
-        _log(text, relationship, "ignore", reason)
-        return False, reason
+        _MEDIA_ACKS = {
+            "image": "Got your image, will look at it properly and get back to you 🙂",
+            "audio": "Got your voice note, will listen to it properly and get back to you 🙂",
+            "video": "Got your video, will watch it properly and get back to you 🙂",
+        }
+        ack_reply = _MEDIA_ACKS.get(message_type, "Got your message, will get back to you 🙂")
+        # Encode the reply in the reason string so bridge.py can extract it
+        # without an extra return value. Format: "media_ack::<reply text>"
+        reason = f"media_ack::{ack_reply}"
+        _log(f"<{message_type}>", relationship, "reply", "media_ack")
+        return True, reason
 
     if is_forwarded:
         reason = "forwarded content, not a real question"
