@@ -1,7 +1,5 @@
 ﻿# WhatsApp Persona Automation
 
-> 🚧 **Work in progress** — actively being built. Features and structure may change.
-
 A retrieval-grounded WhatsApp persona agent that learns your texting style from real chat exports and generates contextually appropriate, persona-consistent replies using RAG + Gemini. It is not a chatbot — it is a personal style mirror that decides when to reply, crafts a reply that sounds like you, and sends it only when it is safe to do so.
 
 ---
