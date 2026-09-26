@@ -35,8 +35,9 @@ const path   = require('path');
 const BRIDGE_URL = `http://127.0.0.1:${process.env.AGENT_BRIDGE_PORT || 5001}/process`;
 const AUTH_DIR   = path.resolve(__dirname, '../auth_info_baileys');
 
-// ── Logger — pino, quiet level; all our structured logs use console.log ───────
-const logger = pino({ level: 'silent' });
+// ── Logger — force silent, suppress all pino output including key dumps ───────
+const logger = pino({ level: 'silent' }).child({});
+logger.level = 'silent';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
