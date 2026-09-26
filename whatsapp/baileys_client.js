@@ -5,17 +5,13 @@
  * ---------------------------
  * Baileys WhatsApp Web client — CommonJS, @whiskeysockets/baileys.
  *
- * DRY_RUN flag
- * ------------
- * When DRY_RUN = true the client will log "[DRY_RUN] would reply to <jid>: <reply>"
- * but will NOT call sock.sendMessage — safe for testing against real contacts.
- * Flip to false only for controlled testing against a known consenting contact.
- * Session 4.2 replaces this with a proper toggle.
+ * Changes from Session 4.1:
+ *   1. DRY_RUN constant removed — read fresh from config/settings.json per message
+ *   2. kill_switch.flag check added — skips all processing if file exists
+ *   3. enforceAllowlist() — independent Node-side allowlist check before sendMessage
+ *   4. Delay range read from settings (min_delay_seconds / max_delay_seconds)
+ *   5. [DRY_RUN] log behaviour preserved when dry_run = true
  */
-
-// ─── FLIP THIS TO FALSE ONLY FOR CONTROLLED TESTING AGAINST A KNOWN ──────────
-// ─── CONSENTING CONTACT. Session 4.2 replaces this with a proper toggle. ─────
-const DRY_RUN = true;
 
 require('dotenv').config();
 
@@ -30,36 +26,97 @@ const qrcode = require('qrcode-terminal');
 const axios  = require('axios');
 const pino   = require('pino');
 const path   = require('path');
+const fs     = require('fs');
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const BRIDGE_URL = `http://127.0.0.1:${process.env.AGENT_BRIDGE_PORT || 5001}/process`;
-const AUTH_DIR   = path.resolve(__dirname, '../auth_info_baileys');
+const BRIDGE_URL          = `http://127.0.0.1:${process.env.AGENT_BRIDGE_PORT || 5001}/process`;
+const AUTH_DIR            = path.resolve(__dirname, '../auth_info_baileys');
+const SETTINGS_PATH       = path.resolve(__dirname, '../config/settings.json');
+const RELATIONSHIP_MAP    = path.resolve(__dirname, '../config/relationship_map.json');
+const KILL_SWITCH_PATH    = path.resolve(__dirname, '../kill_switch.flag');
 
-// ── Logger — force silent, suppress all pino output including key dumps ───────
+// ── Safe defaults — used when settings.json is missing or fails to parse ──────
+const SETTINGS_DEFAULTS = {
+  dry_run:           true,
+  min_delay_seconds: 3,
+  max_delay_seconds: 12,
+};
+
+// ── Logger — silent, no pino key dumps ───────────────────────────────────────
 const logger = pino({ level: 'silent' }).child({});
 logger.level = 'silent';
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
+ * Read config/settings.json fresh on every call.
+ * Falls back to SETTINGS_DEFAULTS if the file is missing or fails to parse.
+ * Never throws.
+ */
+function readSettings() {
+  try {
+    const raw  = fs.readFileSync(SETTINGS_PATH, 'utf-8');
+    const data = JSON.parse(raw);
+    return { ...SETTINGS_DEFAULTS, ...data };
+  } catch (_) {
+    return { ...SETTINGS_DEFAULTS };
+  }
+}
+
+/**
+ * Check whether kill_switch.flag exists in the repo root.
+ * Returns true (kill switch active) or false.
+ */
+function isKillSwitchActive() {
+  return fs.existsSync(KILL_SWITCH_PATH);
+}
+
+/**
+ * Independent Node-side allowlist check.
+ * Reads config/relationship_map.json directly, strips the JID suffix the same
+ * way agent/router.py does, and returns true only if that number's mapped
+ * relationship is not "unknown" and not missing entirely.
+ *
+ * Called immediately before sock.sendMessage — even if the bridge said
+ * should_reply=true — as a final safety gate.
+ */
+function enforceAllowlist(jid) {
+  if (!jid || typeof jid !== 'string') return false;
+
+  // Strip "@..." suffix — same as router.py
+  const atPos  = jid.indexOf('@');
+  const number = atPos !== -1 ? jid.slice(0, atPos) : jid;
+  if (!number) return false;
+
+  try {
+    const raw    = fs.readFileSync(RELATIONSHIP_MAP, 'utf-8');
+    const relMap = JSON.parse(raw);
+    const rel    = relMap[number];
+    // Must exist and must not be "unknown"
+    return typeof rel === 'string' && rel !== 'unknown';
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Extract plain text from a Baileys message object.
- * Priority: conversation → extendedTextMessage.text → media caption → ""
  */
 function extractText(msg) {
   if (!msg) return '';
   return (
-    msg.conversation ||
+    msg.conversation              ||
     msg.extendedTextMessage?.text ||
-    msg.imageMessage?.caption  ||
-    msg.videoMessage?.caption  ||
-    msg.audioMessage?.caption  ||
+    msg.imageMessage?.caption     ||
+    msg.videoMessage?.caption     ||
+    msg.audioMessage?.caption     ||
     ''
   );
 }
 
 /**
- * Determine message_type string.
- * "text" | "image" | "video" | "audio" | "other"
+ * Determine message_type string: "text" | "image" | "video" | "audio" | "other"
  */
 function extractType(msg) {
   if (!msg) return 'other';
@@ -85,10 +142,13 @@ function extractIsForwarded(msg) {
 }
 
 /**
- * Random delay between min and max milliseconds.
+ * Random delay between min and max seconds (converted to ms).
  */
-const randomDelay = (min, max) =>
-  new Promise((res) => setTimeout(res, Math.floor(Math.random() * (max - min + 1)) + min));
+const randomDelay = (minSec, maxSec) => {
+  const ms = Math.floor(Math.random() * ((maxSec - minSec) * 1000 + 1)) + minSec * 1000;
+  return new Promise((res) => setTimeout(res, ms));
+};
+
 
 // ── Core connection ───────────────────────────────────────────────────────────
 
@@ -97,16 +157,16 @@ async function connectToWhatsApp() {
   const { version }          = await fetchLatestBaileysVersion();
 
   console.log(`[ROUTE] Baileys version: ${version.join('.')}`);
-  console.log(`[ROUTE] DRY_RUN = ${DRY_RUN}`);
   console.log(`[ROUTE] Bridge  = ${BRIDGE_URL}`);
+  console.log(`[ROUTE] Settings read fresh per message from ${SETTINGS_PATH}`);
 
   const sock = makeWASocket({
     version,
     logger,
-    auth:               state,
-    printQRInTerminal:  false,   // we handle QR ourselves
-    browser:            ['WhatsApp Persona Automation', 'Chrome', '1.0.0'],
-    syncFullHistory:    false,
+    auth:              state,
+    printQRInTerminal: false,
+    browser:           ['WhatsApp Persona Automation', 'Chrome', '1.0.0'],
+    syncFullHistory:   false,
   });
 
   // ── QR + connection lifecycle ─────────────────────────────────────────────
@@ -137,22 +197,28 @@ async function connectToWhatsApp() {
 
   // ── Incoming messages ─────────────────────────────────────────────────────
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    // CRITICAL: only process genuinely new real-time messages
-    if (type !== 'notify') {
-      console.log('[SKIP] history sync message, ignoring');
-      return;
-    }
+    if (type !== 'notify') return;   // skip history sync silently
 
     for (const message of messages) {
-      // Skip status broadcasts
       if (message.key.remoteJid === 'status@broadcast') continue;
 
       const jid     = message.key.remoteJid;
       const from_me = message.key.fromMe;
 
-      // Skip own messages
       if (from_me) {
         console.log(`[SKIP] own message (${jid})`);
+        continue;
+      }
+
+      // ── 1. Read settings fresh for this message ───────────────────────────
+      const settings       = readSettings();
+      const dryRun         = settings.dry_run;
+      const minDelaySec    = settings.min_delay_seconds;
+      const maxDelaySec    = settings.max_delay_seconds;
+
+      // ── 2. Kill switch check ──────────────────────────────────────────────
+      if (isKillSwitchActive()) {
+        console.log(`[KILL SWITCH] active, skipping all processing for ${jid}`);
         continue;
       }
 
@@ -161,16 +227,10 @@ async function connectToWhatsApp() {
       const messageType = extractType(inner);
       const isForwarded = extractIsForwarded(inner);
 
-      console.log(`[ROUTE] ← ${jid} | type=${messageType} | forwarded=${isForwarded} | text=${text.slice(0, 60)}`);
+      console.log(`[ROUTE] ← ${jid} | type=${messageType} | dry_run=${dryRun} | text=${text.slice(0, 60)}`);
 
       // Build payload for agent bridge
-      const payload = {
-        jid,
-        text,
-        message_type: messageType,
-        is_forwarded: isForwarded,
-        from_me,
-      };
+      const payload = { jid, text, message_type: messageType, is_forwarded: isForwarded, from_me };
 
       // POST to agent/bridge.py
       let result = null;
@@ -183,16 +243,22 @@ async function connectToWhatsApp() {
         continue;
       }
 
-      // Send reply if approved
+      // ── 3. Send reply if approved ─────────────────────────────────────────
       if (result?.should_reply && result?.reply) {
-        if (DRY_RUN) {
+        if (dryRun) {
           // DRY RUN — log only, do NOT send
           console.log(`[DRY_RUN] would reply to ${jid}: ${result.reply}`);
         } else {
-          // LIVE — wait random human-like delay then send
-          const delay = Math.floor(Math.random() * (8000 - 3000 + 1)) + 3000;
-          console.log(`[REPLY] Waiting ${delay}ms before sending to ${jid}...`);
-          await randomDelay(3000, 8000);
+          // ── 4. Independent allowlist check before sending ─────────────────
+          if (!enforceAllowlist(jid)) {
+            console.log(`[BLOCKED] failed independent allowlist check for ${jid} — skipping send`);
+            continue;
+          }
+
+          // ── 5. Random human-like delay from settings ──────────────────────
+          console.log(`[REPLY] Waiting ${minDelaySec}–${maxDelaySec}s before sending to ${jid}...`);
+          await randomDelay(minDelaySec, maxDelaySec);
+
           await sock.sendMessage(jid, { text: result.reply });
           console.log(`[SEND] → ${jid}: ${result.reply.slice(0, 60)}`);
         }
