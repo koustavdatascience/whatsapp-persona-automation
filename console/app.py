@@ -3,30 +3,33 @@ console/app.py
 ---------------
 Streamlit live console for WhatsApp Persona Automation.
 
-Features:
-  1. Auto-refreshes every 2 seconds
-  2. Live feed from logs/console_feed.jsonl — last 20 entries, newest first
-     - Colored relationship badge (family=green, friend=blue,
-       professional=purple, unknown/group=gray)
-     - Decision (reply/ignore) with reason
-     - Generated reply if any
-     - Expandable retrieval trace section
-  3. Sidebar: current DRY_RUN / LIVE mode (read from config/mode.txt)
-  4. Sidebar metrics: total messages processed + total replies sent
+Session 4.2 additions to sidebar:
+  1. DRY_RUN / LIVE toggle — writes dry_run to config/settings.json atomically
+  2. min_delay_seconds / max_delay_seconds number inputs — validated, atomic write
+  3. 🔴 KILL SWITCH button — creates kill_switch.flag; Clear button deletes it
+  4. All settings writes are atomic (write temp file, rename into place)
+
+Everything from Session 4.1 (live feed, retrieval trace, metrics) unchanged.
 
 Run:
     streamlit run console/app.py
 """
 
 import json
+import os
+import tempfile
 from pathlib import Path
 
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-LOG_FILE  = Path("logs") / "console_feed.jsonl"
-MODE_FILE = Path("config") / "mode.txt"
+LOG_FILE        = Path("logs") / "console_feed.jsonl"
+SETTINGS_FILE   = Path("config") / "settings.json"
+KILL_SWITCH     = Path("kill_switch.flag")
+
+# ── Safe defaults ─────────────────────────────────────────────────────────────
+_DEFAULTS = {"dry_run": True, "min_delay_seconds": 3, "max_delay_seconds": 12}
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -38,14 +41,42 @@ st.set_page_config(
 # Auto-refresh every 2 seconds
 st_autorefresh(interval=2000, key="console_refresh")
 
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def read_mode() -> str:
-    """Read DRY_RUN or LIVE from config/mode.txt. Defaults to DRY_RUN."""
+def load_settings() -> dict:
+    """Read config/settings.json, return merged with defaults. Never raises."""
     try:
-        return MODE_FILE.read_text(encoding="utf-8").strip()
+        text = SETTINGS_FILE.read_text(encoding="utf-8").strip()
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            return dict(_DEFAULTS)
+        return {**_DEFAULTS, **data}
     except Exception:
-        return "DRY_RUN"
+        return dict(_DEFAULTS)
+
+
+def save_settings(updates: dict) -> None:
+    """
+    Merge updates into the current settings and write atomically.
+    Atomic write: write to a temp file in the same directory, then rename
+    into place — a concurrent reader never sees a half-written file.
+    """
+    current = load_settings()
+    current.update(updates)
+    dir_path = SETTINGS_FILE.parent
+    # Write to a temp file in the same directory so rename is atomic
+    fd, tmp_path = tempfile.mkstemp(dir=dir_path, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(current, f, indent=2)
+        os.replace(tmp_path, SETTINGS_FILE)   # atomic on all OS
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def load_log(n: int = 20) -> list[dict]:
@@ -63,7 +94,6 @@ def load_log(n: int = 20) -> list[dict]:
 
 
 def relationship_badge(rel: str) -> str:
-    """Return a colored Streamlit markdown badge for the relationship tier."""
     rel = (rel or "unknown").lower()
     if rel in ("family",):
         color = "green"
@@ -83,43 +113,108 @@ def decision_badge(decision: str) -> str:
 
 
 def fmt_ts(ts: str) -> str:
-    """Trim ISO timestamp to HH:MM:SS for display."""
     if not ts:
         return "—"
-    # e.g. 2026-09-25T14:32:01.123456+00:00 → 14:32:01
     try:
         return ts[11:19]
     except Exception:
         return ts
 
 
+# ── Load current state ────────────────────────────────────────────────────────
+settings        = load_settings()
+kill_active     = KILL_SWITCH.exists()
+all_entries     = load_log(200)
+total_processed = len(all_entries)
+total_replied   = sum(1 for e in all_entries if e.get("decision") == "reply")
+
+
+# ── Kill switch warning banner (top of page, before sidebar) ─────────────────
+if kill_active:
+    st.error(
+        "🔴 **KILL SWITCH IS ACTIVE** — all autonomous sending is halted. "
+        "Use the sidebar to clear it.",
+        icon="🚨",
+    )
+
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-mode     = read_mode()
-entries  = load_log(200)   # load all for stats
-
-total_processed = len(entries)
-total_replied   = sum(1 for e in entries if e.get("decision") == "reply")
-
 with st.sidebar:
-    st.title("⚙️ Status")
+    st.title("⚙️ Controls")
 
-    # Mode badge
-    if mode == "LIVE":
-        st.markdown("**Mode:** :red[🔴 LIVE — sending enabled]")
+    # ── 1. DRY_RUN / LIVE toggle ──────────────────────────────────────────────
+    st.subheader("Mode")
+    dry_run_current = bool(settings.get("dry_run", True))
+    mode_label      = "DRY_RUN" if dry_run_current else "LIVE"
+    mode_color      = ":orange[🟡 DRY_RUN — no messages sent]" if dry_run_current else ":red[🔴 LIVE — sending enabled]"
+    st.markdown(f"Current: {mode_color}")
+
+    new_mode = st.radio(
+        "Set mode",
+        options=["DRY_RUN", "LIVE"],
+        index=0 if dry_run_current else 1,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+    if st.button("Apply mode", use_container_width=True):
+        save_settings({"dry_run": new_mode == "DRY_RUN"})
+        st.success(f"Mode set to {new_mode}")
+        st.rerun()
+
+    st.divider()
+
+    # ── 2. Delay settings ─────────────────────────────────────────────────────
+    st.subheader("Reply Delay")
+    min_val = int(settings.get("min_delay_seconds", 3))
+    max_val = int(settings.get("max_delay_seconds", 12))
+
+    new_min = st.number_input(
+        "Min delay (seconds)", min_value=1, max_value=60,
+        value=min_val, step=1,
+    )
+    new_max = st.number_input(
+        "Max delay (seconds)", min_value=1, max_value=120,
+        value=max_val, step=1,
+    )
+
+    if st.button("Apply delay", use_container_width=True):
+        if new_min <= 0 or new_max <= 0:
+            st.error("Both values must be positive.")
+        elif new_min >= new_max:
+            st.error("Min must be less than max.")
+        else:
+            save_settings({"min_delay_seconds": new_min, "max_delay_seconds": new_max})
+            st.success(f"Delay set to {new_min}–{new_max}s")
+            st.rerun()
+
+    st.divider()
+
+    # ── 3. Kill switch ────────────────────────────────────────────────────────
+    st.subheader("Kill Switch")
+    if kill_active:
+        st.markdown(":red[🔴 ACTIVE — sending halted]")
+        if st.button("✅ Clear kill switch", use_container_width=True, type="primary"):
+            try:
+                KILL_SWITCH.unlink(missing_ok=True)
+                st.success("Kill switch cleared.")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Could not remove flag: {e}")
     else:
-        st.markdown("**Mode:** :orange[🟡 DRY_RUN — no messages sent]")
+        st.markdown(":green[🟢 Inactive]")
+        if st.button("🔴 ACTIVATE KILL SWITCH", use_container_width=True, type="primary"):
+            KILL_SWITCH.touch()
+            st.warning("Kill switch activated. All sending halted.")
+            st.rerun()
 
     st.divider()
 
+    # ── Metrics ───────────────────────────────────────────────────────────────
     st.metric("Messages Processed", total_processed)
-    st.metric("Replies Sent",        total_replied)
-
+    st.metric("Replies Sent", total_replied)
     if total_processed:
-        rate = total_replied / total_processed * 100
-        st.metric("Reply Rate", f"{rate:.1f}%")
+        st.metric("Reply Rate", f"{total_replied / total_processed * 100:.1f}%")
 
-    st.divider()
-    st.caption("Mode is read from config/mode.txt\nSession 4.2 adds live toggle.")
 
 # ── Main feed ─────────────────────────────────────────────────────────────────
 st.title("💬 WhatsApp Persona Automation — Live Console")
@@ -127,7 +222,6 @@ st.caption("Auto-refreshes every 2 seconds · newest first")
 
 st.divider()
 
-# Reload last 20 for display (newest first)
 display_entries = load_log(20)
 
 if not display_entries:
@@ -143,7 +237,6 @@ else:
         trace    = entry.get("retrieval_trace") or []
         text     = entry.get("text", "")
 
-        # ── Card ──────────────────────────────────────────────────────────────
         with st.container(border=True):
             col1, col2, col3 = st.columns([1, 3, 3])
 
@@ -164,7 +257,6 @@ else:
                 else:
                     st.markdown("**Reply:** —")
 
-                # Expandable retrieval trace
                 if trace:
                     with st.expander(f"🔍 Retrieval trace ({len(trace)} pair{'s' if len(trace) != 1 else ''})"):
                         for i, pair in enumerate(trace, 1):
